@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -202,12 +203,75 @@ namespace Aq.ExpressionJsonSerializer.Tests
             TestExpression((Expression<Func<Context, int>>) (c => (int) c.Method3()));
         }
 
+
+        [TestMethod]
+        public void PrimeiroMembro()
+        {
+            TestExpression((Expression<Func<Context, string>>)(c => c.Membros.First().Nome));
+        }
+
+        [TestMethod]
+        public void TemOttas()
+        {
+            // isso compila.
+            TestExpression((Expression<Func<Context, string>>)(c =>  c.Membros.Select(m=>m.Nome).Contains("Claudio Otta") ? "Tem" : "nao tem"  ));
+            TestExpression((Expression<Func<Context, string>>)(c =>  c.Membros.Select(m => m.Nome).Contains("Claudio Otta") ? "Tem" : "nao tem"));
+
+            // isso nao:
+            // TestExpression((Expression<Func<Context, string>>)(c => { if (c.Membros.Select(m => m.Nome).Contains("Otta")) { return "Tem"; } else { return "nao tem"; } } ));
+
+        }
+
+        [TestMethod]
+        public void PresidenteComissaoParaAtoInstaurador()
+        {
+            TestExpression((Expression<Func<Context, string>>)
+                
+                ( c=>
+                    $"{c.Membros.First(m=> m.EhPresidente).Nome}, {c.Membros.First(m => m.EhPresidente).Cargo} "
+                ));
+        }
+
+
+        [TestMethod]
+        public void OutrosMembrosComissaoParaAtoInstaurador()
+        {
+            TestExpression((Expression<Func<Context, string>>)
+
+                (c => String.Join("; ", c.Membros.Where(m => !m.EhPresidente).Select(m=>m.Nome).ToList())
+                ));
+        }
+
+        [TestMethod]
+        public void OutrosMembrosComissaoParaAtoInstauradorComCargo()
+        {
+            TestExpression((Expression<Func<Context, string>>)
+
+                (c => String.Join("; ", c.Membros.Where(m => !m.EhPresidente).Select(m => $"{m.Nome}, {m.Cargo}").ToList())
+                ));
+        }
+
+
+
+        private sealed class Membro
+        {
+            public string Nome { get; set; }
+            public bool EhPresidente { get; set; }
+            public string Cargo { get; set; }
+        }
+
         private sealed class Context
         {
             public int A;
             public int B { get; set; }
             public int? C;
             public int[] Array;
+            public List<Membro> Membros = new List<Membro> {
+                new Membro{ Nome="Claudio Otta", EhPresidente=false, Cargo="AFC"},
+                new Membro{ Nome="Master Otta", EhPresidente=true, Cargo="Chefe"},
+                new Membro{ Nome="Peba Otta", EhPresidente=false, Cargo="Cargo Peba"}
+            };
+
             public int this[string key]
             {
                 get
@@ -246,10 +310,10 @@ namespace Aq.ExpressionJsonSerializer.Tests
             var json = JsonConvert.SerializeObject(source, settings);
             var target = JsonConvert.DeserializeObject<LambdaExpression>(json, settings);
 
-            Assert.AreEqual(
-                ExpressionResult(source, context),
-                ExpressionResult(target, context)
-            );
+            var resultSource = ExpressionResult(source, context);
+            var resultTarget = ExpressionResult(target, context);
+            Assert.AreEqual(resultSource, resultTarget);
+             
         }
 
         private static string ExpressionResult(LambdaExpression expr, Context context)
